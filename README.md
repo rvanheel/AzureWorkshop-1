@@ -1,8 +1,17 @@
 # 1. Develop and deploy a Web App to Azure
 1. Create a resource group in the Azure Portal
-2. Create a empty Web App in the Azure Portal
-3. Create a .NET Core MVC application
+```powershell
+New-AzResourceGroup -Location "westeurope" -Name "devoteam-demo"
 ```
+2. Create a empty Web App in the Azure Portal
+```powershell
+# create a serviceplan first
+New-AzAppServicePlan -Location westeurope -ResourceGroupName "devoteam-demo" -Name "DevoTeam" -Tier "Standard"
+# create the webapp
+New-AzWebApp -Location westeurope -ResourceGroupName "devoteam-demo" -AppServicePlan "DevoTeam" -Name "DevoteamDemoWebApp"
+```
+3. Create a .NET Core MVC application
+```sh
 dotnet new mvc --name WebAppDemo
 cd WebAppDemo/
 # open with Visual Studio Code
@@ -10,7 +19,7 @@ code .
 
 ```
 4. Initialize a local GIT repository and create a .gitignore file
-```
+```sh
 git init
 touch .gitignore
 # make the content of .gitignore to lool like:
@@ -19,37 +28,45 @@ obj/
 ```
 5. Enable GIT deployment on the Web App in the Azure Portal
 6. Add Azure deployment to the local GIT repository
-```
+```sh
 git remote add azure [git_url]
 ```
 7. Commit the application and publish to Azure
-```
+```sh
 git add --all
 git commit -m "version 1"
 git push azure master --force
 ```
 8. Create a deployment slot in the Azure Portal for the Web App and enable GIT deployment
-9. Update the local GIT repository with the deployment slot GIT repository
+```powershell
+New-AzWebAppSlot -ResourceGroupName "devoteam-demo" -AppServicePlan "DevoTeam" -Name "DevoteamDemoWebApp" -Slot "Staging"
 ```
+9. Update the local GIT repository with the deployment slot GIT repository
+```sh
 git remote set-url [deployment_slot_git_url]
 ```
 10. Deploy to the new deployment slot in Azure
-```
+```sh
 git push azure master --force
 ```
 11. Enable AUTO swap in the Azure Portal for the Web App
-
+```powershell
+Set-AzWebAppSlot -ResourceGroupName "devoteam-demo" -AppServicePlan "DevoTeam" -Name "DevoteamDemoWebApp" -Slot "Staging" -AutoSwapSlotName "production"
+```
 # 2. Implement Azure Storage using Storage Tables
 1. Create a storage account in the Azure Portal
-2. Create a .NET Core application
+```powershell
+New-AzStorageAccount -ResourceGroupName "devoteam-demo" -Location "westeurope" -Name "devoteamdemowebapp" -SkuName "Standard_LRS" -Kind "StorageV2"
 ```
+2. Create a .NET Core application
+```sh
 dotnet new console --name DemoApp
 cd DemoApp
 # open with Visual Studio Code
 code . 
 ```
 3. Add the Windows Azure Storage package
-```
+```sh
 # Console
 dotnet add package WindowsAzure.Storage --version 9.3.3 
 # Visual Studio
@@ -104,7 +121,7 @@ static void Main(string[] args)
 }
 ```
 7. Add the Windows Azure Storage package in the Web Application
-```
+```sh
 # Console
 dotnet add package WindowsAzure.Storage --version 9.3.3 
 # Visual Studio
@@ -196,18 +213,42 @@ public async Task<IActionResult> Json()
 "AZURE_CONNECTION_STRING": "** TO BE REPLACED ***"
 ```
 13. Add the connectionString in the Application Settings in the Azure Portal
+```powershell
+# get the azure storage key
+$storageKey=(Get-AzStorageAccountKey -ResourceGroupName "devoteam-demo" -AccountName "devoteamdemowebapp").Value[0];
+# assign it to the Web App
+Set-AzWebApp -AppSettings @{ AZURE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=devoteamdemowebapp;AccountKey=$StorageKey;" } -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo"
+# mark the setting as a slot setting
+Set-AzWebAppSlotConfigName -AppSettingNames "AZURE_CONNECTION_STRING" -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo"
 14. Change the use of the connectionString in the HomeController.cs
+# update our staging slot as well
+Set-AzWebAppSlot -AppSettings @{ AZURE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=devoteamdemowebapp;AccountKey=$StorageKey;" } -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo" -Slot "Staging"
 ```C#
 var storageAccount = CloudStorageAccount.Parse(Environment.GetEnvironmentVariable("AZURE_CONNECTION_STRING"));
 ```
 15. publish the new changes to the Azure Web App
 # 3. Securing using Azure KeyVault
 1. Create a service principal in the Azure Portal
-2. Create a KeyVault in the Azure Portal
-3. Grant the permissions for the service principal in the Azure Portal
-4. Create a secret in the KeyVault with the ConnectionString
-5. Implement the KeyVault package in the Web App
+```powershell
+New-AzADApplication -DisplayName "DevoTeamDemoApp" -IdentifierUris "http://localhost:5000"
 ```
+2. Create a KeyVault in the Azure Portal
+```powershell
+New-AzKeyVault -ResourceGroupName "devoteam-demo" -Location "westeurope" -Name "devoteam-demo" -Sku "Standard"
+```
+3. Grant the permissions for the service principal in the Azure Portal
+```powershell
+# set access for this service principal
+$ObjectId = (Get-AzADApplication -DisplayName "DevoTeamDemoApp").ObjectId
+Set-AzKeyVaultAccessPolicy -ResourceGroupName "devoteam-demo" -VaultName "devoteam-demo" -ObjectId  "$ApplicationId" -PermissionsToSecrets get,list
+```
+4. Create a secret in the KeyVault with the ConnectionString
+```powershell
+$secretValue = ConvertTo-SecureString -String "DefaultEndpointsProtocol=https;AccountName=devoteamdemowebapp;AccountKey=$StorageKey;" -AsPlainText -Force
+Set-AzKeyVaultSecret -VaultName "devoteam-demo" -Name "azcs" -SecretValue $secretValue
+```
+5. Implement the KeyVault package in the Web App
+```sh
 # console
 dotnet add package Microsoft.Extensions.Configuration.AzureKeyVault --version 2.1.1
 # Visual Studio
