@@ -222,6 +222,7 @@ Set-AzWebApp -AppSettings @{ AZURE_CONNECTION_STRING = "DefaultEndpointsProtocol
 Set-AzWebAppSlotConfigName -AppSettingNames "AZURE_CONNECTION_STRING" -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo"
 ```
 14. Change the use of the connectionString in the HomeController.cs
+```powershell
 # update our staging slot as well
 Set-AzWebAppSlot -AppSettings @{ AZURE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=devoteamdemowebapp;AccountKey=$StorageKey;" } -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo" -Slot "Staging"
 ```C#
