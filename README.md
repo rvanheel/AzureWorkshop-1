@@ -30,22 +30,25 @@ obj/
 6. Add Azure deployment to the local GIT repository
 ```sh
 git remote add azure [git_url]
-git push --set-upstream azure master
+# let's push what we have so far
+git add --all
+git commit -m "Initial version"
+git push azure master --force
 # now do a npm package for versioned deployments, accept all defaults
 npm init
 # modify the scripts section inside package.json to:
 ```
 ```json
-"scripts": {
-    "postversion": "git push azure && git push azure master --tags",
-    "version": "git add --all"
+{
+    "scripts": {
+        "postversion": "git push azure master --force && git push azure master --tags",
+        "version": "git add --all"
+    }
 }
 ```
 7. Commit the application and publish to Azure
 ```sh
-git add --all
-git commit -m "version 1"
-git push azure master --force
+npm version patch -f
 ```
 8. Create a deployment slot in the Azure Portal for the Web App and enable GIT deployment
 ```powershell
@@ -53,7 +56,7 @@ New-AzWebAppSlot -ResourceGroupName "devoteam-demo" -AppServicePlan "DevoTeam" -
 ```
 9. Update the local GIT repository with the deployment slot GIT repository
 ```sh
-git remote set-url [deployment_slot_git_url]
+git remote set-url azure [deployment_slot_git_url]
 ```
 10. Deploy to the new deployment slot in Azure
 ```sh
@@ -220,7 +223,10 @@ public async Task<IActionResult> Json()
 ```
 12. Optimize by moving the connectionstring in the Environment Settings locally inside launch.json
 ```json
-"AZURE_CONNECTION_STRING": "** TO BE REPLACED ***"
+{
+  "AZURE_CONNECTION_STRING": "** TO BE REPLACED ***"
+}
+
 ```
 13. Add the connectionString in the Application Settings in the Azure Portal
 ```powershell
@@ -239,11 +245,19 @@ Set-AzWebAppSlot -AppSettings @{ AZURE_CONNECTION_STRING = "DefaultEndpointsProt
 ```C#
 var storageAccount = CloudStorageAccount.Parse(Environment.GetEnvironmentVariable("AZURE_CONNECTION_STRING"));
 ```
-15. publish the new changes to the Azure Web App
+15. publish the new changes to the Azure Web App, by incrementing the version
+```sh
+npm version patch -f
+```
 # 3. Securing using Azure KeyVault
 1. Create a service principal in the Azure Portal
 ```powershell
-New-AzADApplication -DisplayName "DevoTeamDemoApp" -IdentifierUris "http://localhost:5000"
+
+$Application = New-AzADApplication -DisplayName "DevoTeamDemoApp" -IdentifierUris "http://localhost:5000"
+$password = ConvertTo-SecureString -String "MyVeryStrongPassword1234*" -AsPlainText -Force
+$cred = New-AzADAppCredential -ObjectId $Application.ObjectId -Password $password
+$sp = New-AzADServicePrincipal -ApplicationId $Application.ApplicationId
+
 ```
 2. Create a KeyVault in the Azure Portal
 ```powershell
@@ -252,8 +266,8 @@ New-AzKeyVault -ResourceGroupName "devoteam-demo" -Location "westeurope" -Name "
 3. Grant the permissions for the service principal in the Azure Portal
 ```powershell
 # set access for this service principal
-$ObjectId = (Get-AzADApplication -DisplayName "DevoTeamDemoApp").ObjectId
-Set-AzKeyVaultAccessPolicy -ResourceGroupName "devoteam-demo" -VaultName "devoteam-demo" -ObjectId  "$ApplicationId" -PermissionsToSecrets get,list
+Set-AzKeyVaultAccessPolicy -ResourceGroupName "devoteam-demo" -VaultName "devoteam-demo" -ServicePrincipalName $Application.ApplicationId -PermissionsToSecrets get,list
+
 ```
 4. Create a secret in the KeyVault with the ConnectionString
 ```powershell
@@ -269,27 +283,33 @@ Install-Package Microsoft.Extensions.Configuration.AzureKeyVault -Version 2.1.1
 ```
 6. Add the KeyVault settings in appsetttings.json
 ```json
-"AzureADApplicationId": "*** TO BE REPLACED ***",
-"AzureADPassword":"*** TO BE REPLACED ***",
-"KeyVaultName": "*** TO BE REPLACED ***"
+{
+  "AzureADApplicationId": "*** TO BE REPLACED ***",
+  "AzureADPassword":"MyVeryStrongPassword1234*",
+  "KeyVaultName": "devoteam-demo"
+}
+
 ```
 ```C#
 // add registration inside program.cs
-public static IWebHostBuilder CreateWebHostBuilder(string[] args) => WebHost.CreateDefaultBuilder(args)
-    .ConfigureAppConfiguration((context, config) =>
-{
-    var buildConfig = config.Build();
-    //Add Key Vault to configuration pipeline, we need the whole url
-    config.AddAzureKeyVault(
-        $"https://{buildConfig["KeyVaultName"]}.vault.azure.net/",                     
-        buildConfig["AzureADApplicationId"],
-        buildConfig["AzureADPassword"],
-        new DefaultKeyVaultSecretManager());
+public static IWebHostBuilder CreateWebHostBuilder(string[] args) =>
+            WebHost.CreateDefaultBuilder(args)
+            .ConfigureAppConfiguration((context, config) =>
+            {
+                var buildConfig = config.Build();
+                //Add Key Vault to configuration pipeline, we need the whole url
+                config.AddAzureKeyVault(
+                    $"https://{buildConfig["KeyVaultName"]}.vault.azure.net/",                     
+                    buildConfig["AzureADApplicationId"],
+                    buildConfig["AzureADPassword"],
+                    new DefaultKeyVaultSecretManager());                
+            })
+            .UseStartup<Startup>();
 
 // register as a Singleton inside start.cs for Dependency Injection
 public void ConfigureServices(IServiceCollection services)
 {
-    var storageAccount = CloudStorageAccount.Parse(Configuration["*** KeyVault Secret Name ***"]);
+    var storageAccount = CloudStorageAccount.Parse(Configuration["azcs"]);
     var tableClient = storageAccount.CreateCloudTableClient();
     var table = tableClient.GetTableReference("demo1234");
     services.AddSingleton<CloudTable>(table);
@@ -303,19 +323,37 @@ public HomeController(CloudTable table)
 }
 ```
 7. Add Application Settings inside the Azure Portal
-8. Enable Managed Identity on the Web App in the Azure Portal
+```powershell
+Set-AzWebApp -AppSettings @{ KeyVaultName = "devoteam-demo"; AzureADPassword = "MyVeryStrongPassword1234*"; AzureADApplicationId = $Application.ApplicationId.ToString(); } -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo"
+# mark the setting as a slot setting
+Set-AzWebAppSlotConfigName -AppSettingNames "KeyVaultName","AzureADPassword","AzureADApplicationId" -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo"
+# update our staging slot as well
+Set-AzWebAppSlot -AppSettings @{ KeyVaultName = "devoteam-demo"; AzureADPassword = "MyVeryStrongPassword1234*"; AzureADApplicationId = $Application.ApplicationId.ToString(); } -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo" -Slot "Staging"
+
+```
+```sh
+# publish a new version
+npm version patch -f
+```
+8. Remove Previous ADApp and Enable Managed Identity on the Web App in the Azure Portal
 9. Optimize the code inside program.cs
 ```C#
-public static IWebHostBuilder CreateWebHostBuilder(string[] args) => WebHost.CreateDefaultBuilder(args)
-    .ConfigureAppConfiguration((context, config) =>
-{
-    var buildConfig = config.Build();
-    // Create Managed Service Identity token provider
-    var tokenProvider = new AzureServiceTokenProvider();
-    //Create the Key Vault client
-    var kvClient = new KeyVaultClient((authority, resource, scope) => tokenProvider.KeyVaultTokenCallback(authority, resource, scope));
-    config.AddAzureKeyVault(
-    $"https://{buildConfig["KeyVaultName"]}.vault.azure.net/",                     
-    kvClient, 
-    new DefaultKeyVaultSecretManager());
+       public static IWebHostBuilder CreateWebHostBuilder(string[] args) => WebHost.CreateDefaultBuilder(args)
+            .ConfigureAppConfiguration((context, config) =>
+        {
+            var buildConfig = config.Build();
+            // Create Managed Service Identity token provider
+            var tokenProvider = new AzureServiceTokenProvider();
+            //Create the Key Vault client
+            var kvClient = new KeyVaultClient((authority, resource, scope) => tokenProvider.KeyVaultTokenCallback(authority, resource, scope));
+            config.AddAzureKeyVault(
+                $"https://{buildConfig["KeyVaultName"]}.vault.azure.net/",                     
+                kvClient, 
+                 new DefaultKeyVaultSecretManager());            
+            })
+            .UseStartup<Startup>();
+```
+10. publish the new version to Azure
+```sh
+npm version major -f
 ```
