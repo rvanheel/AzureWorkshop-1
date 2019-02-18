@@ -30,6 +30,16 @@ obj/
 6. Add Azure deployment to the local GIT repository
 ```sh
 git remote add azure [git_url]
+git push --set-upstream azure master
+# now do a npm package for versioned deployments, accept all defaults
+npm init
+# modify the scripts section inside package.json to:
+```
+```json
+"scripts": {
+    "postversion": "git push azure && git push azure master --tags",
+    "version": "git add --all"
+}
 ```
 7. Commit the application and publish to Azure
 ```sh
@@ -225,6 +235,7 @@ Set-AzWebAppSlotConfigName -AppSettingNames "AZURE_CONNECTION_STRING" -Name "dev
 ```powershell
 # update our staging slot as well
 Set-AzWebAppSlot -AppSettings @{ AZURE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=devoteamdemowebapp;AccountKey=$StorageKey;" } -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo" -Slot "Staging"
+```
 ```C#
 var storageAccount = CloudStorageAccount.Parse(Environment.GetEnvironmentVariable("AZURE_CONNECTION_STRING"));
 ```
