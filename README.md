@@ -1,3 +1,12 @@
+
+```powershell
+# Connect to Azure with a browser sign in token
+Connect-AzAccount
+# show the list of your active subscriptions
+Get-AzSubscription
+# select your subscription if necessary
+Set-AzContext -SubscriptionId (Get-AzSubscription -SubscriptionName "***YOUR SUBSCRIPTION NAME***").SubscriptionId
+```
 # 1. Develop and deploy a Web App to Azure
 1. Create a resource group in the Azure Portal
 ```powershell
