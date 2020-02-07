@@ -254,12 +254,10 @@ $storageKey=(Get-AzStorageAccountKey -ResourceGroupName "devoteam-demo" -Account
 Set-AzWebApp -AppSettings @{ AZURE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=devoteamdemowebapp;AccountKey=$StorageKey;" } -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo"
 # mark the setting as a slot setting
 Set-AzWebAppSlotConfigName -AppSettingNames "AZURE_CONNECTION_STRING" -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo"
-```
-14. Change the use of the connectionString in the HomeController.cs
-```powershell
 # update our staging slot as well
 Set-AzWebAppSlot -AppSettings @{ AZURE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=devoteamdemowebapp;AccountKey=$StorageKey;" } -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo" -Slot "Staging"
 ```
+14. Change the use of the connectionString in the HomeController.cs
 ```C#
 var storageAccount = CloudStorageAccount.Parse(Environment.GetEnvironmentVariable("AZURE_CONNECTION_STRING"));
 ```
@@ -273,7 +271,7 @@ npm version patch -f
 
 $Application = New-AzADApplication -DisplayName "DevoTeamDemoApp" -IdentifierUris "http://localhost:5000"
 $password = ConvertTo-SecureString -String "MyVeryStrongPassword1234*" -AsPlainText -Force
-$cred = New-AzADAppCredential -ObjectId $Application.ObjectId -Password $password
+$cred = New-AzADAppCredential -ObjectId $Application.ObjectId -Password $password -EndDate "2029-12-31T23:59:00"
 $sp = New-AzADServicePrincipal -ApplicationId $Application.ApplicationId
 
 ```
@@ -285,6 +283,9 @@ New-AzKeyVault -ResourceGroupName "devoteam-demo" -Location "westeurope" -Name "
 ```powershell
 # set access for this service principal
 Set-AzKeyVaultAccessPolicy -ResourceGroupName "devoteam-demo" -VaultName "devoteam-demo" -ServicePrincipalName $Application.ApplicationId -PermissionsToSecrets get,list
+# set access to the key vault from your account
+$userId = (Get-AzADUser -First 1).Id
+Set-AzureRmKeyVaultAccessPolicy –VaultName "devoteam-demo" –Object $userId -PermissionsToSecrets get,list,set,delete,purge
 
 ```
 4. Create a secret in the KeyVault with the ConnectionString
