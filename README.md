@@ -1,11 +1,11 @@
-You can either run the **Azure Powershell** commands either in the **Azure Portal CLI**, or on your **computer**.
+You can run the **Azure Powershell** commands either in the **Azure Portal CLI**, or on your **computer**.
 
 What you need or need to do for this workshop:
 * An Azure Subscription
 * Install [Git](https://git-scm.com/downloads) on your computer
 * Optional, Install [NodeJs](https://nodejs.org/en/download) on your computer
 * [Visual Studio 2015+ (Community, Pro or Enterprise)](https://visualstudio.microsoft.com/downloads/) or [Visual Studio Code](https://code.visualstudio.com/download)
-* Optional, if you want to run the [Azure Powershell CmdLets](https://docs.microsoft.com/en-us/powershell/azure/install-az-ps?view=azps-3.4.0) from your computer
+* Optional, Install the [Azure Powershell CmdLets](https://docs.microsoft.com/en-us/powershell/azure/install-az-ps?view=azps-3.4.0) if you would like to run the Azure Powershell Commands from your computer
 
 Run the following commands only from a terminal session on your **computer** ( NO NEED TO DO THIS IF YOU USE THE AZURE PORTAL):
 ```powershell
