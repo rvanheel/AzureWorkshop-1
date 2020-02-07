@@ -1,4 +1,6 @@
+You can either run the Azure Powershell commands either in the Azure Portal CLI, or on your computer.
 
+Run the following command in a terminal session on your computer:
 ```powershell
 # Connect to Azure with a browser sign in token
 Connect-AzAccount
