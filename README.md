@@ -17,16 +17,25 @@ Get-AzSubscription
 Set-AzContext -SubscriptionId (Get-AzSubscription -SubscriptionName "***YOUR SUBSCRIPTION NAME***").SubscriptionId
 ```
 # 1. Develop and deploy a Web App to Azure
+
+# Set some variables first
+
+$ResourceGroup = "devoteam-demo"
+$AppServicePlanName = ("DevoTeamPlan_{0}" -f (Get-Date -format "yyyyMMddHHmmss"))
+$WebAppName = ("WebApp-{0}" -f (Get-Date -format "yyyyMMddHHmmss"))
+$KeyVaultName = ("KeyVault-{0}" -f (Get-Date -format "yyyyMMddHHmmss"))
+$StorageAccount = ("storage{0}" -f (Get-Date -format "yyyyMMddHHmmss"))
+
 1. Create a resource group in the Azure Portal
 ```powershell
-New-AzResourceGroup -Location "westeurope" -Name "devoteam-demo"
+New-AzResourceGroup -Location "westeurope" -Name $ResourceGroup
 ```
 2. Create a empty Web App in the Azure Portal
 ```powershell
 # create a serviceplan first
-New-AzAppServicePlan -Location westeurope -ResourceGroupName "devoteam-demo" -Name "DevoTeam" -Tier "Standard"
+New-AzAppServicePlan -Location westeurope -ResourceGroupName $ResourceGroup -Name $AppServicePlanName -Tier "Standard"
 # create the webapp
-New-AzWebApp -Location westeurope -ResourceGroupName "devoteam-demo" -AppServicePlan "DevoTeam" -Name "DevoteamDemoWebApp"
+New-AzWebApp -Location westeurope -ResourceGroupName $ResourceGroup -AppServicePlan $AppServicePlanName -Name $WebAppName
 ```
 3. Create a .NET Core MVC application
 ```sh
@@ -70,7 +79,7 @@ npm version patch -f
 ```
 8. Create a deployment slot in the Azure Portal for the Web App and enable GIT deployment
 ```powershell
-New-AzWebAppSlot -ResourceGroupName "devoteam-demo" -AppServicePlan "DevoTeam" -Name "DevoteamDemoWebApp" -Slot "Staging"
+New-AzWebAppSlot -ResourceGroupName $ResourceGroup -AppServicePlan $AppServicePlanName -Name $WebAppName -Slot "Staging"
 ```
 9. Update the local GIT repository with the deployment slot GIT repository
 ```sh
@@ -82,12 +91,12 @@ git push azure master --force
 ```
 11. Enable AUTO swap in the Azure Portal for the Web App
 ```powershell
-Set-AzWebAppSlot -ResourceGroupName "devoteam-demo" -AppServicePlan "DevoTeam" -Name "DevoteamDemoWebApp" -Slot "Staging" -AutoSwapSlotName "production"
+Set-AzWebAppSlot -ResourceGroupName $ResourceGroup -AppServicePlan $AppServicePlanName -Name $WebAppName -Slot "Staging" -AutoSwapSlotName "production"
 ```
 # 2. Implement Azure Storage using Storage Tables
 1. Create a storage account in the Azure Portal
 ```powershell
-New-AzStorageAccount -ResourceGroupName "devoteam-demo" -Location "westeurope" -Name "devoteamdemowebapp" -SkuName "Standard_LRS" -Kind "StorageV2"
+New-AzStorageAccount -ResourceGroupName $ResourceGroup -Location "westeurope" -Name $StorageAccount -SkuName "Standard_LRS" -Kind "StorageV2"
 ```
 2. Create a .NET Core application
 ```sh
@@ -249,13 +258,13 @@ public async Task<IActionResult> Json()
 13. Add the connectionString in the Application Settings in the Azure Portal
 ```powershell
 # get the azure storage key
-$storageKey=(Get-AzStorageAccountKey -ResourceGroupName "devoteam-demo" -AccountName "devoteamdemowebapp").Value[0];
+$storageKey=(Get-AzStorageAccountKey -ResourceGroupName $ResourceGroup -AccountName $StorageAccount).Value[0];
 # assign it to the Web App
-Set-AzWebApp -AppSettings @{ AZURE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=devoteamdemowebapp;AccountKey=$StorageKey;" } -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo"
+Set-AzWebApp -AppSettings @{ AZURE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=$StorageAccount;AccountKey=$StorageKey;" } -Name $WebAppName -ResourceGroupName $ResourceGroup
 # mark the setting as a slot setting
-Set-AzWebAppSlotConfigName -AppSettingNames "AZURE_CONNECTION_STRING" -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo"
+Set-AzWebAppSlotConfigName -AppSettingNames "AZURE_CONNECTION_STRING" -Name $WebAppName -ResourceGroupName $ResourceGroup
 # update our staging slot as well
-Set-AzWebAppSlot -AppSettings @{ AZURE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=devoteamdemowebapp;AccountKey=$StorageKey;" } -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo" -Slot "Staging"
+Set-AzWebAppSlot -AppSettings @{ AZURE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=$StorageAccount;AccountKey=$StorageKey;" } -Name $WebAppName -ResourceGroupName $ResourceGroup -Slot "Staging"
 ```
 14. Change the use of the connectionString in the HomeController.cs
 ```C#
@@ -277,21 +286,21 @@ $sp = New-AzADServicePrincipal -ApplicationId $Application.ApplicationId
 ```
 2. Create a KeyVault in the Azure Portal
 ```powershell
-New-AzKeyVault -ResourceGroupName "devoteam-demo" -Location "westeurope" -Name "devoteam-demo" -Sku "Standard"
+New-AzKeyVault -ResourceGroupName $ResourceGroup -Location "westeurope" -Name $KeyVaultName -Sku "Standard"
 ```
 3. Grant the permissions for the service principal in the Azure Portal
 ```powershell
 # set access for this service principal
-Set-AzKeyVaultAccessPolicy -ResourceGroupName "devoteam-demo" -VaultName "devoteam-demo" -ServicePrincipalName $Application.ApplicationId -PermissionsToSecrets get,list
+Set-AzKeyVaultAccessPolicy -ResourceGroupName $ResourceGroup -VaultName $KeyVaultName -ServicePrincipalName $Application.ApplicationId -PermissionsToSecrets get,list
 # set access to the key vault from your account
 $userId = (Get-AzADUser -First 1).Id
-Set-AzureRmKeyVaultAccessPolicy –VaultName "devoteam-demo" –Object $userId -PermissionsToSecrets get,list,set,delete,purge
+Set-AzureRmKeyVaultAccessPolicy –VaultName $KeyVaultName –Object $userId -PermissionsToSecrets get,list,set,delete,purge
 
 ```
 4. Create a secret in the KeyVault with the ConnectionString
 ```powershell
-$secretValue = ConvertTo-SecureString -String "DefaultEndpointsProtocol=https;AccountName=devoteamdemowebapp;AccountKey=$StorageKey;" -AsPlainText -Force
-Set-AzKeyVaultSecret -VaultName "devoteam-demo" -Name "azcs" -SecretValue $secretValue
+$secretValue = ConvertTo-SecureString -String "DefaultEndpointsProtocol=https;AccountName=$StorageAccount;AccountKey=$StorageKey;" -AsPlainText -Force
+Set-AzKeyVaultSecret -VaultName $KeyVaultName -Name "azcs" -SecretValue $secretValue
 ```
 5. Implement the KeyVault package in the Web App
 ```sh
@@ -305,7 +314,7 @@ Install-Package Microsoft.Extensions.Configuration.AzureKeyVault -Version 2.1.1
 {
   "AzureADApplicationId": "*** TO BE REPLACED ***",
   "AzureADPassword":"MyVeryStrongPassword1234*",
-  "KeyVaultName": "devoteam-demo"
+  "KeyVaultName": "*** PUT THE KEYVAULT NAME HERE ***"
 }
 
 ```
@@ -343,11 +352,11 @@ public HomeController(CloudTable table)
 ```
 7. Add Application Settings inside the Azure Portal
 ```powershell
-Set-AzWebApp -AppSettings @{ KeyVaultName = "devoteam-demo"; AzureADPassword = "MyVeryStrongPassword1234*"; AzureADApplicationId = $Application.ApplicationId.ToString(); } -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo"
+Set-AzWebApp -AppSettings @{ KeyVaultName = $KeyVaultName; AzureADPassword = "MyVeryStrongPassword1234*"; AzureADApplicationId = $Application.ApplicationId.ToString(); } -Name $WebAppName -ResourceGroupName $ResourceGroup
 # mark the setting as a slot setting
-Set-AzWebAppSlotConfigName -AppSettingNames "KeyVaultName","AzureADPassword","AzureADApplicationId" -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo"
+Set-AzWebAppSlotConfigName -AppSettingNames "KeyVaultName","AzureADPassword","AzureADApplicationId" -Name $WebAppName -ResourceGroupName $ResourceGroup
 # update our staging slot as well
-Set-AzWebAppSlot -AppSettings @{ KeyVaultName = "devoteam-demo"; AzureADPassword = "MyVeryStrongPassword1234*"; AzureADApplicationId = $Application.ApplicationId.ToString(); } -Name "devoteamdemowebapp" -ResourceGroupName "devoteam-demo" -Slot "Staging"
+Set-AzWebAppSlot -AppSettings @{ KeyVaultName = $KeyVaultName; AzureADPassword = "MyVeryStrongPassword1234*"; AzureADApplicationId = $Application.ApplicationId.ToString(); } -Name $WebAppName -ResourceGroupName $ResourceGroup -Slot "Staging"
 
 ```
 ```sh
@@ -375,4 +384,9 @@ npm version patch -f
 10. publish the new version to Azure
 ```sh
 npm version major -f
+```
+
+10. Remove the resource group and all used resources at once without confirmation:
+```powershell
+Get-AzureRmResourceGroup -Name $ResourceGroup | Remove-AzureRmResourceGroup -Force -Verbose
 ```
