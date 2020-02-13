@@ -39,7 +39,7 @@ New-AzWebApp -Location westeurope -ResourceGroupName $ResourceGroup -AppServiceP
 ```
 3. Create a .NET Core MVC application
 ```sh
-dotnet new mvc --name WebAppDemo
+dotnet new mvc --name WebAppDemo -f netcoreapp2.2
 cd WebAppDemo/
 # open with Visual Studio Code
 code .
