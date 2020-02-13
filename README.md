@@ -19,13 +19,13 @@ Set-AzContext -SubscriptionId (Get-AzSubscription -SubscriptionName "***YOUR SUB
 # 1. Develop and deploy a Web App to Azure
 
 # Set some variables first
-
+```powershell
 $ResourceGroup = "devoteam-demo"
 $AppServicePlanName = ("DevoTeamPlan_{0}" -f (Get-Date -format "yyyyMMddHHmmss"))
 $WebAppName = ("WebApp-{0}" -f (Get-Date -format "yyyyMMddHHmmss"))
 $KeyVaultName = ("KeyVault-{0}" -f (Get-Date -format "yyyyMMddHHmmss"))
 $StorageAccount = ("storage{0}" -f (Get-Date -format "yyyyMMddHHmmss"))
-
+```
 1. Create a resource group in the Azure Portal
 ```powershell
 New-AzResourceGroup -Location "westeurope" -Name $ResourceGroup
